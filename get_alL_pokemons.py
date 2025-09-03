@@ -9,6 +9,7 @@ TIME_SLEEP = 1
 
 POKEMON_INFO = {
     "name": "",
+    "No": 0,
     "pokemon_type": [],
     "HP": 0,
     "attack": 0,
@@ -38,10 +39,11 @@ POKEMON_MOVES = {
 }
 
 def get_session_for_info(session, URL_INFO):
-    succes = False
-    while succes == False:
+    success = False
+    while success == False:
         try:
             info_all_pokemons = session.get(URL_INFO)
+            success = True
             return info_all_pokemons
         except Exception as e:
             print("Error: {}".format(e))
@@ -49,11 +51,11 @@ def get_session_for_info(session, URL_INFO):
             time.sleep(TIME_SLEEP)
 
 def get_session_for_sprites(session, URL_SPRITES_GEN_5):
-    succes = False
-    while succes == False:
+    success = False
+    while success == False:
         try:
             sprites_all_pokemons = session.get(URL_SPRITES_GEN_5)
-            succes = True
+            success = True
             return sprites_all_pokemons
         except Exception as e:
             print("Error: {}".format(e))
@@ -77,8 +79,8 @@ def get_url_attacks(first_pokemon_name_list):
             time.sleep(TIME_SLEEP)
 
 def get_session_for_attacks(session, first_pokemon_name_list):
-    succes = False
-    while succes == False:
+    success = False
+    while success == False:
         try:
             attacks_all_pokemons = []
             URL_MOVES = get_url_attacks(first_pokemon_name_list)
@@ -86,6 +88,7 @@ def get_session_for_attacks(session, first_pokemon_name_list):
                 print(url)
                 response = session.get(url)
                 attacks_all_pokemons.append(response)
+            success = True
             return attacks_all_pokemons
         except Exception as e:
             print("Error: {}".format(e))
@@ -94,70 +97,81 @@ def get_session_for_attacks(session, first_pokemon_name_list):
 
 def get_pokemon_info (info_all_pokemons):
     first_pokemon_name_list = []
-    row = info_all_pokemons.html.find("tr")
-    for pokemon in row[:NUM_POKEMONS]:
-        name_place = pokemon.find(".cell-name", first=True)
-        if not name_place:
-            continue
-        # Primer nombre
-        first_name = name_place.find("a", first=True)
-        # Nombre secundario (ej: "Mega Mewtwo Y")
-        second_name = name_place.find("small", first=True)
-        first_pokemon_name = first_name.text
-        first_pokemon_name_list.append(first_pokemon_name)
-        pokemon_name = " / ".join([first_name.text, second_name.text]) if second_name else first_name.text
+    success = False
+    while success == False:
+        try:
+            row = info_all_pokemons.html.find("tr")
+            for pokemon in row[:NUM_POKEMONS]:
+                name_place = pokemon.find(".cell-name", first=True)
+                if not name_place:
+                    continue
 
-        types_block = pokemon.find(".cell-icon", first=True)
-        first_second_type = [type.text for type in types_block.find("a")]
-        types = " / ".join(first_second_type)
+                first_name = name_place.find("a", first=True)
+                second_name = name_place.find("small", first=True)
+                first_pokemon_name = first_name.text
+                first_pokemon_name_list.append(first_pokemon_name)
+                pokemon_name = " / ".join([first_name.text, second_name.text]) if second_name else first_name.text
 
-        stats = pokemon.find(".cell-num")
-        number = stats[0].text if len(stats) > 0 else ""
-        hp = stats[2].text if len(stats) > 2 else ""
-        attack = stats[3].text if len(stats) > 3 else ""
-        defense = stats[4].text if len(stats) > 4 else ""
-        sp_attack = stats[5].text if len(stats) > 5 else ""
-        sp_defense = stats[6].text if len(stats) > 6 else ""
-        speed = stats[7].text if len(stats) > 7 else ""
+                types_block = pokemon.find(".cell-icon", first=True)
+                first_second_type = [type.text for type in types_block.find("a")]
+                types = " / ".join(first_second_type)
 
-        URL_ATTACKS = get_url_attacks(first_pokemon_name_list)
+                stats = pokemon.find(".cell-num")
+                number = stats[0].text if len(stats) > 0 else ""
+                hp = stats[2].text if len(stats) > 2 else ""
+                attack = stats[3].text if len(stats) > 3 else ""
+                defense = stats[4].text if len(stats) > 4 else ""
+                sp_attack = stats[5].text if len(stats) > 5 else ""
+                sp_defense = stats[6].text if len(stats) > 6 else ""
+                speed = stats[7].text if len(stats) > 7 else ""
 
-        print(
-            f" No: {number} /Name: {pokemon_name} / Types: {types} / HP: {hp} / Attack: {attack} / Defense: {defense} / Sp. Atk: {sp_attack} / Sp. Def: {sp_defense} / Speed: {speed}")
-
-    return first_pokemon_name_list
+                URL_ATTACKS = get_url_attacks(first_pokemon_name_list)
+                print(f" No: {number} /Name: {pokemon_name} / Types: {types} / HP: {hp} / Attack: {attack} / Defense: {defense} / Sp. Atk: {sp_attack} / Sp. Def: {sp_defense} / Speed: {speed}")
+                success = True
+            return first_pokemon_name_list,types,types_block,stats, first_name, second_name, number, types, hp, attack, defense, sp_attack, sp_defense, speed
+        except Exception as e:
+            print("Error:{}".format(e))
+            print(RETRYING_MESSAGE)
+            time.sleep(TIME_SLEEP)
 
 def get_pokemon_moves(attacks_all_pokemons):
-    for pokemon_response in attacks_all_pokemons:
-        title = pokemon_response.html.find("h1", first=True)
-        print(f"\n=== MOVIMIENTOS DE {title.text.upper()} ===")
-        h3_sections = pokemon_response.html.find("h3")
-        tables = pokemon_response.html.find("table.data-table")
-        seen = set()
-        for table in range(min(len(h3_sections), len(tables))):
-            section = h3_sections[table]
-            table = tables[table]
-            if section.text in seen:
-                continue
-            seen.add(section.text)
-            print(f"\n=== SECCION: {section.text.upper()} ===")
-            rows = table.find("tr")
-            for moves in rows:
-                move_name_cell = moves.find(".cell-name", first=True)
-                move_type_cell = moves.find(".cell-icon", first=True)
-                if not move_name_cell or not move_type_cell:
-                    continue
-                move_name = move_name_cell.text
-                move_type = move_type_cell.text
+    success = False
+    while not success:
+        try:
+            for pokemon_response in attacks_all_pokemons:
+                title = pokemon_response.html.find("h1", first=True)
+                print(f"\n=== MOVIMIENTOS DE {title.text.upper()} ===")
+                h3_sections = pokemon_response.html.find("h3")
+                tables = pokemon_response.html.find("table.data-table")
+                seen = set()
+                for table in range(min(len(h3_sections), len(tables))):
+                    section = h3_sections[table]
+                    table = tables[table]
+                    if section.text in seen:
+                        continue
+                    seen.add(section.text)
+                    print(f"\n=== SECCION: {section.text.upper()} ===")
+                    rows = table.find("tr")
+                    for moves in rows:
+                        move_name_cell = moves.find(".cell-name", first=True)
+                        move_type_cell = moves.find(".cell-icon", first=True)
+                        if not move_name_cell or not move_type_cell:
+                            continue
+                        move_name = move_name_cell.text
+                        move_type = move_type_cell.text
 
-                stats = moves.find(".cell-num")
-                if len(stats) >= 3:
-                    move_lvl = stats[0].text if stats[0].text else "--"
-                    move_damage = stats[1].text if stats[1].text else "--"
-                    move_precision = stats[2].text if stats[2].text else "--"
-                print(f" LVL: {move_lvl} /Name: {move_name} / Type: {move_type} / Damage: {move_damage} / Precision: {move_precision}")
-
-    #return move_lvl, move_name, move_type, move_damage, move_precision
+                        stats = moves.find(".cell-num")
+                        if len(stats) >= 3:
+                            move_lvl = stats[0].text if stats[0].text else "--"
+                            move_damage = stats[1].text if stats[1].text else "--"
+                            move_precision = stats[2].text if stats[2].text else "--"
+                        print(f" LVL: {move_lvl} /Name: {move_name} / Type: {move_type} / Damage: {move_damage} / Precision: {move_precision}")
+            success = True
+            return move_lvl, move_name, move_type, move_damage, move_precision
+        except Exception as e:
+            print("Error: {}".format(e))
+            print(RETRYING_MESSAGE)
+            time.sleep(TIME_SLEEP)
 
 def get_table_titles(pokemon_response):
     # Buscar todos los encabezados h2 y h3 que contienen las secciones de movimientos
@@ -172,6 +186,22 @@ def get_table_titles(pokemon_response):
             print(f"\n{level * 5} {section_text.upper()} {level * 5}")
     
     return sections  # Devolvemos las secciones encontradas
+
+def save_info_in_dicc(stats,first_name, second_name,types,types_block,number,hp, attack, defense, sp_attack, sp_defense, speed):
+    all_pokemon_data = []
+    POKEMON_INFO["No"] = number
+    POKEMON_INFO["name"] = first_name.text
+    if second_name:
+        POKEMON_INFO["name"] += f" {second_name.text}"
+    POKEMON_INFO["pokemon_type"] = [type.text for type in types_block.find("a")]
+    if len(stats) > 6:
+        POKEMON_INFO["HP"] = int(stats[2].text) if stats[2].text.isdigit() else 0
+        POKEMON_INFO["attack"] = int(stats[3].text) if stats[3].text.isdigit() else 0
+        POKEMON_INFO["defense"] = int(stats[4].text) if stats[4].text.isdigit() else 0
+        POKEMON_INFO["sp_attack"] = int(stats[5].text) if stats[5].text.isdigit() else 0
+        POKEMON_INFO["sp_defense"] = int(stats[6].text) if stats[6].text.isdigit() else 0
+        POKEMON_INFO["speed"] = int(stats[7].text) if len(stats) > 7 and stats[7].text.isdigit() else 0
+    all_pokemon_data.append(POKEMON_INFO)
 
 
 def main():
