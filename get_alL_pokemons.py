@@ -3,7 +3,7 @@ from requests_html import HTMLSession
 URL_INFO = "https://pokemondb.net/pokedex/all"
 
 URL_SPRITES_GEN_5 = ""
-NUM_POKEMONS = 5
+NUM_POKEMONS = 2
 RETRYING_MESSAGE = "Reintentando..."
 TIME_SLEEP = 1
 
@@ -28,19 +28,11 @@ POKEMON_SPRITES = {
     }
 }
 
-POKEMON_MOVES = {
-    "MoveName": {
-        "lvl": 0,
-        "type": "",
-        "damage": 0,
-        "precision": 0
-        
-    }
-}
+POKEMON_MOVES = {}
 
 def get_session_for_info(session, URL_INFO):
     success = False
-    while success == False:
+    while not success:
         try:
             info_all_pokemons = session.get(URL_INFO)
             success = True
@@ -52,7 +44,7 @@ def get_session_for_info(session, URL_INFO):
 
 def get_session_for_sprites(session, URL_SPRITES_GEN_5):
     success = False
-    while success == False:
+    while not success:
         try:
             sprites_all_pokemons = session.get(URL_SPRITES_GEN_5)
             success = True
@@ -64,7 +56,7 @@ def get_session_for_sprites(session, URL_SPRITES_GEN_5):
 
 def get_url_attacks(first_pokemon_name_list):
     success = False
-    while success == False:
+    while not success:
         try:
             URL_ATTACKS_TEMPLATE = "https://pokemondb.net/pokedex/{}/moves/1"
             URLS_MOVES = []
@@ -80,7 +72,7 @@ def get_url_attacks(first_pokemon_name_list):
 
 def get_session_for_attacks(session, first_pokemon_name_list):
     success = False
-    while success == False:
+    while not success:
         try:
             attacks_all_pokemons = []
             URL_MOVES = get_url_attacks(first_pokemon_name_list)
@@ -98,7 +90,7 @@ def get_session_for_attacks(session, first_pokemon_name_list):
 def get_pokemon_info (info_all_pokemons):
     first_pokemon_name_list = []
     success = False
-    while success == False:
+    while not success:
         try:
             row = info_all_pokemons.html.find("tr")
             for pokemon in row[:NUM_POKEMONS]:
@@ -126,7 +118,9 @@ def get_pokemon_info (info_all_pokemons):
                 speed = stats[7].text if len(stats) > 7 else ""
 
                 URL_ATTACKS = get_url_attacks(first_pokemon_name_list)
-                print(f" No: {number} /Name: {pokemon_name} / Types: {types} / HP: {hp} / Attack: {attack} / Defense: {defense} / Sp. Atk: {sp_attack} / Sp. Def: {sp_defense} / Speed: {speed}")
+                all_pokemon_data = save_info_in_dicc_info(stats,first_name, second_name,types,types_block,number,
+                      hp, attack, defense, sp_attack, sp_defense, speed)
+                #print(f" No: {number} /Name: {pokemon_name} / Types: {types} / HP: {hp} / Attack: {attack} / Defense: {defense} / Sp. Atk: {sp_attack} / Sp. Def: {sp_defense} / Speed: {speed}")
                 success = True
             return first_pokemon_name_list,types,types_block,stats, first_name, second_name, number, types, hp, attack, defense, sp_attack, sp_defense, speed
         except Exception as e:
@@ -165,9 +159,11 @@ def get_pokemon_moves(attacks_all_pokemons):
                             move_lvl = stats[0].text if stats[0].text else "--"
                             move_damage = stats[1].text if stats[1].text else "--"
                             move_precision = stats[2].text if stats[2].text else "--"
+                        all_pokemon_moves = save_info_in_dicc_moves(move_lvl, move_name, move_type, move_damage, move_precision)
                         print(f" LVL: {move_lvl} /Name: {move_name} / Type: {move_type} / Damage: {move_damage} / Precision: {move_precision}")
+            
             success = True
-            return move_lvl, move_name, move_type, move_damage, move_precision
+            return all_pokemon_moves
         except Exception as e:
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
@@ -187,7 +183,9 @@ def get_table_titles(pokemon_response):
     
     return sections  # Devolvemos las secciones encontradas
 
-def save_info_in_dicc(stats,first_name, second_name,types,types_block,number,hp, attack, defense, sp_attack, sp_defense, speed):
+def save_info_in_dicc_info(stats,first_name, second_name,types,types_block,number,
+                      hp, attack, defense, sp_attack, sp_defense, speed,
+                      ):
     all_pokemon_data = []
     POKEMON_INFO["No"] = number
     POKEMON_INFO["name"] = first_name.text
@@ -202,14 +200,29 @@ def save_info_in_dicc(stats,first_name, second_name,types,types_block,number,hp,
         POKEMON_INFO["sp_defense"] = int(stats[6].text) if stats[6].text.isdigit() else 0
         POKEMON_INFO["speed"] = int(stats[7].text) if len(stats) > 7 and stats[7].text.isdigit() else 0
     all_pokemon_data.append(POKEMON_INFO)
+    all_pokemon_data.append(POKEMON_MOVES)
+    print(POKEMON_INFO)
+    return all_pokemon_data
+
+def save_info_in_dicc_moves(move_lvl, move_name, move_type, move_damage, move_precision):
+    all_pokemon_moves = []
+    POKEMON_MOVES[move_name] = {
+        "lvl": int(move_lvl) if move_lvl.isdigit() else 0,
+        "type": move_type,
+        "damage": int(move_damage) if move_damage.isdigit() else 0,
+        "precision": int(move_precision) if move_precision.isdigit() else 0
+    }
+    all_pokemon_moves.append(POKEMON_MOVES)
+    print(POKEMON_MOVES)
+    return all_pokemon_moves
 
 
 def main():
     session = HTMLSession()
-    info_all_pokemons = get_session_for_info(session, URL_INFO)
-    first_pokemon_name_list = get_pokemon_info(info_all_pokemons)
+    info_all_pokemons = get_session_for_info(session, URL_INFO) 
+    first_pokemon_name_list,*_ = get_pokemon_info(info_all_pokemons) #*_ to ignore the other returned values
     attacks_all_pokemons = get_session_for_attacks(session, first_pokemon_name_list)
     pokemon_moves = get_pokemon_moves(attacks_all_pokemons)
-
+    
 if __name__ == "__main__":
     main()
