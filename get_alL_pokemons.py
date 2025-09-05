@@ -1,8 +1,8 @@
 import time
 from requests_html import HTMLSession
-URL_INFO = "https://pokemondb.net/pokedex/all"
+import os
 
-URL_SPRITES_GEN_5 = ""
+URL_INFO = "https://pokemondb.net/pokedex/all"
 NUM_POKEMONS = 2
 RETRYING_MESSAGE = "Reintentando..."
 TIME_SLEEP = 1
@@ -42,17 +42,41 @@ def get_session_for_info(session, URL_INFO):
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
 
-def get_session_for_sprites(session, URL_SPRITES_GEN_5):
+
+def get_url_sprites(first_pokemon_name_list):
     success = False
     while not success:
         try:
-            sprites_all_pokemons = session.get(URL_SPRITES_GEN_5)
+            URL_SPRITES_GEN_5_TEMPLATE = "https://pokemondb.net/sprites/{}"
+            URL_SPRITES = []
+            for name in first_pokemon_name_list:
+                URL_SPRITES_GEN_5 = URL_SPRITES_GEN_5_TEMPLATE.format(name)
+                URL_SPRITES.append(URL_SPRITES_GEN_5)
             success = True
-            return sprites_all_pokemons
+            return URL_SPRITES
         except Exception as e:
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
+
+
+def get_session_for_sprites(session,first_name_pokemon_list):
+    success = False
+    while not success:
+        try:
+            sprites_all_pokemon = []
+            URL_SPRITES_GEN_5 = get_url_sprites(first_name_pokemon_list)
+            for url in URL_SPRITES_GEN_5:
+                print(url)
+                response = session.get(url)
+                sprites_all_pokemon.append(response)
+            success = True
+            return sprites_all_pokemon
+        except Exception as e:
+            print("Error: {}".format(e))
+            print(RETRYING_MESSAGE)
+            time.sleep(TIME_SLEEP)
+
 
 def get_url_attacks(first_pokemon_name_list):
     success = False
@@ -86,6 +110,7 @@ def get_session_for_attacks(session, first_pokemon_name_list):
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
+
 
 def get_pokemon_info (info_all_pokemons):
     first_pokemon_name_list = []
@@ -128,6 +153,7 @@ def get_pokemon_info (info_all_pokemons):
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
 
+
 def get_pokemon_moves(attacks_all_pokemons):
     success = False
     while not success:
@@ -160,7 +186,7 @@ def get_pokemon_moves(attacks_all_pokemons):
                             move_damage = stats[1].text if stats[1].text else "--"
                             move_precision = stats[2].text if stats[2].text else "--"
                         all_pokemon_moves = save_info_in_dicc_moves(move_lvl, move_name, move_type, move_damage, move_precision)
-                        print(f" LVL: {move_lvl} /Name: {move_name} / Type: {move_type} / Damage: {move_damage} / Precision: {move_precision}")
+                        #print(f" LVL: {move_lvl} /Name: {move_name} / Type: {move_type} / Damage: {move_damage} / Precision: {move_precision}")
             
             success = True
             return all_pokemon_moves
@@ -168,6 +194,7 @@ def get_pokemon_moves(attacks_all_pokemons):
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
+
 
 def get_table_titles(pokemon_response):
     # Buscar todos los encabezados h2 y h3 que contienen las secciones de movimientos
@@ -182,6 +209,44 @@ def get_table_titles(pokemon_response):
             print(f"\n{level * 5} {section_text.upper()} {level * 5}")
     
     return sections  # Devolvemos las secciones encontradas
+
+
+def get_pokemon_sprites(sprites_all_pokemon):
+    success = False
+    while not success:
+        url_sprites_pokemon = []
+        for pokemon_response in sprites_all_pokemon:
+            try:
+                resp_scroll_div = pokemon_response.html.find(".resp-scroll")[5]  # Selecciona el sexto div con clase 'resp-scroll'
+                if resp_scroll_div:
+                    tr_elements = resp_scroll_div.find("tr")
+                    if len(tr_elements) > 1:
+                        resp_tr = tr_elements[2]  # Tercera fila
+                        for td in resp_tr.find("td"):
+                            a_elements = td.find("a")
+                            for a in a_elements:
+                                href_gif_pokemon = a.attrs.get('href', '')
+                                print(href_gif_pokemon)
+                                url_sprites_pokemon.append(href_gif_pokemon)
+                                success = True
+            except Exception as e:
+                print("Error: {}".format(e))
+                print(RETRYING_MESSAGE)
+                time.sleep(TIME_SLEEP)
+    return url_sprites_pokemon
+
+def download_sprite(session,url_sprites_pokemon):
+    for url in url_sprites_pokemon:
+        response = session.get(url)
+        if response.status_code == 200:
+            parts = url.split("/")
+            file_name = "{}_{}".format(parts[-2], parts[-1])
+            if os.path.exists(file_name):
+                print(f"Ya existe, se omite: {file_name}")
+                continue
+            with open(file_name, "wb") as file:
+                file.write(response.content)
+            print("Sprite descargado: {}".format(file_name))
 
 def save_info_in_dicc_info(stats,first_name, second_name,types,types_block,number,
                       hp, attack, defense, sp_attack, sp_defense, speed,
@@ -223,6 +288,9 @@ def main():
     first_pokemon_name_list,*_ = get_pokemon_info(info_all_pokemons) #*_ to ignore the other returned values
     attacks_all_pokemons = get_session_for_attacks(session, first_pokemon_name_list)
     pokemon_moves = get_pokemon_moves(attacks_all_pokemons)
-    
+    sprites_all_pokemon = get_session_for_sprites(session,first_pokemon_name_list)
+    url_sprites_pokemon = get_pokemon_sprites(sprites_all_pokemon)
+    download_sprite(session,url_sprites_pokemon)
+
 if __name__ == "__main__":
     main()
