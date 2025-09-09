@@ -3,9 +3,19 @@ from requests_html import HTMLSession
 import os
 
 URL_INFO = "https://pokemondb.net/pokedex/all"
-NUM_POKEMONS = 2
+NUM_POKEMONS = 3
 RETRYING_MESSAGE = "Reintentando..."
 TIME_SLEEP = 1
+FOLDER_SPRITES_NAME = "sprites"
+
+POKEMON_SPRITES = {
+        "front": "",
+        "back": "",
+        "shiny_front": "",
+        "shiny_back": ""
+}
+
+POKEMON_MOVES = {}
 
 POKEMON_INFO = {
     "name": "",
@@ -17,18 +27,9 @@ POKEMON_INFO = {
     "sp_attack": 0,
     "sp_defense": 0,
     "speed": 0,
+    "moves": POKEMON_MOVES,
+    "sprites": POKEMON_SPRITES
 }
-
-POKEMON_SPRITES = {
-    "sprites": {
-        "front": "",
-        "back": "",
-        "shiny_front": "",
-        "shiny_back": ""
-    }
-}
-
-POKEMON_MOVES = {}
 
 def get_session_for_info(session, URL_INFO):
     success = False
@@ -41,7 +42,6 @@ def get_session_for_info(session, URL_INFO):
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
-
 
 def get_url_sprites(first_pokemon_name_list):
     success = False
@@ -59,7 +59,6 @@ def get_url_sprites(first_pokemon_name_list):
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
 
-
 def get_session_for_sprites(session,first_name_pokemon_list):
     success = False
     while not success:
@@ -76,7 +75,6 @@ def get_session_for_sprites(session,first_name_pokemon_list):
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
-
 
 def get_url_attacks(first_pokemon_name_list):
     success = False
@@ -110,7 +108,6 @@ def get_session_for_attacks(session, first_pokemon_name_list):
             print("Error: {}".format(e))
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
-
 
 def get_pokemon_info (info_all_pokemons):
     first_pokemon_name_list = []
@@ -153,14 +150,13 @@ def get_pokemon_info (info_all_pokemons):
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
 
-
 def get_pokemon_moves(attacks_all_pokemons):
     success = False
     while not success:
         try:
             for pokemon_response in attacks_all_pokemons:
                 title = pokemon_response.html.find("h1", first=True)
-                print(f"\n=== MOVIMIENTOS DE {title.text.upper()} ===")
+                #print(f"\n=== MOVIMIENTOS DE {title.text.upper()} ===")
                 h3_sections = pokemon_response.html.find("h3")
                 tables = pokemon_response.html.find("table.data-table")
                 seen = set()
@@ -170,7 +166,7 @@ def get_pokemon_moves(attacks_all_pokemons):
                     if section.text in seen:
                         continue
                     seen.add(section.text)
-                    print(f"\n=== SECCION: {section.text.upper()} ===")
+                    #print(f"\n=== SECCION: {section.text.upper()} ===")
                     rows = table.find("tr")
                     for moves in rows:
                         move_name_cell = moves.find(".cell-name", first=True)
@@ -195,7 +191,6 @@ def get_pokemon_moves(attacks_all_pokemons):
             print(RETRYING_MESSAGE)
             time.sleep(TIME_SLEEP)
 
-
 def get_table_titles(pokemon_response):
     # Buscar todos los encabezados h2 y h3 que contienen las secciones de movimientos
     sections = pokemon_response.html.find("h2, h3")
@@ -206,10 +201,9 @@ def get_table_titles(pokemon_response):
         if section_text:  # Solo mostrar si el texto no está vacío
             # Determinar el nivel de la sección por la etiqueta HTML
             level = "=" if section.tag == "h2" else "-"
-            print(f"\n{level * 5} {section_text.upper()} {level * 5}")
+            #print(f"\n{level * 5} {section_text.upper()} {level * 5}")
     
     return sections  # Devolvemos las secciones encontradas
-
 
 def get_pokemon_sprites(sprites_all_pokemon):
     success = False
@@ -226,7 +220,7 @@ def get_pokemon_sprites(sprites_all_pokemon):
                             a_elements = td.find("a")
                             for a in a_elements:
                                 href_gif_pokemon = a.attrs.get('href', '')
-                                print(href_gif_pokemon)
+                                #print(href_gif_pokemon)
                                 url_sprites_pokemon.append(href_gif_pokemon)
                                 success = True
             except Exception as e:
@@ -235,18 +229,44 @@ def get_pokemon_sprites(sprites_all_pokemon):
                 time.sleep(TIME_SLEEP)
     return url_sprites_pokemon
 
-def download_sprite(session,url_sprites_pokemon):
+
+def download_sprite(session, url_sprites_pokemon):
+    sprite_name = []
     for url in url_sprites_pokemon:
-        response = session.get(url)
-        if response.status_code == 200:
-            parts = url.split("/")
-            file_name = "{}_{}".format(parts[-2], parts[-1])
-            if os.path.exists(file_name):
-                print(f"Ya existe, se omite: {file_name}")
-                continue
-            with open(file_name, "wb") as file:
-                file.write(response.content)
-            print("Sprite descargado: {}".format(file_name))
+        success = False
+        while not success:
+            try:
+                response = session.get(url)
+                if response.status_code == 200:
+                    if not os.path.exists(FOLDER_SPRITES_NAME):
+                        os.makedirs(FOLDER_SPRITES_NAME)
+                        #print("Carpeta creada: {}".format(FOLDER_SPRITES_NAME))
+                    """
+                    else:
+                        print("Carpeta existente: {}".format(FOLDER_SPRITES_NAME))
+                    """
+                    parts = url.split("/")
+                    file_name = "{}_{}".format(parts[-2], parts[-1])
+                    file_path = os.path.join(FOLDER_SPRITES_NAME, file_name)
+
+                    if os.path.exists(file_path):
+                        #print("Ya existe, se omite: {}".format(file_name))
+                        sprite_name.append(file_name) 
+                        success = True  # ya no necesitamos reintentar
+                        continue
+
+                    with open(file_path, "wb") as file:
+                        file.write(response.content)
+                        sprite_name.append(file_name)
+                    #print("Sprite descargado: {}".format(file_name))
+                    success = True
+            except Exception as e:
+                print("Error: {}".format(e))
+                print(RETRYING_MESSAGE)
+                time.sleep(TIME_SLEEP)
+    if sprite_name:
+        save_info_in_dicc_sprites(sprite_name)
+    return sprite_name
 
 def save_info_in_dicc_info(stats,first_name, second_name,types,types_block,number,
                       hp, attack, defense, sp_attack, sp_defense, speed,
@@ -266,7 +286,7 @@ def save_info_in_dicc_info(stats,first_name, second_name,types,types_block,numbe
         POKEMON_INFO["speed"] = int(stats[7].text) if len(stats) > 7 and stats[7].text.isdigit() else 0
     all_pokemon_data.append(POKEMON_INFO)
     all_pokemon_data.append(POKEMON_MOVES)
-    print(POKEMON_INFO)
+    #print(POKEMON_INFO)
     return all_pokemon_data
 
 def save_info_in_dicc_moves(move_lvl, move_name, move_type, move_damage, move_precision):
@@ -277,20 +297,42 @@ def save_info_in_dicc_moves(move_lvl, move_name, move_type, move_damage, move_pr
         "damage": int(move_damage) if move_damage.isdigit() else 0,
         "precision": int(move_precision) if move_precision.isdigit() else 0
     }
+    POKEMON_INFO["moves"] = POKEMON_MOVES.copy()
     all_pokemon_moves.append(POKEMON_MOVES)
-    print(POKEMON_MOVES)
+    #print(POKEMON_MOVES)
     return all_pokemon_moves
 
+
+def save_info_in_dicc_sprites(sprite_name):
+    for file_name in sprite_name:
+        file_path = os.path.join(FOLDER_SPRITES_NAME, file_name)
+        if "back" in file_name and "shiny" in file_name:
+            POKEMON_INFO["sprites"]["shiny_back"] = file_path
+        elif "back" in file_name:
+            POKEMON_INFO["sprites"]["back"] = file_path
+        elif "shiny" in file_name:
+            POKEMON_INFO["sprites"]["shiny_front"] = file_path
+        else:
+            POKEMON_INFO["sprites"]["front"] = file_path
 
 def main():
     session = HTMLSession()
     info_all_pokemons = get_session_for_info(session, URL_INFO) 
     first_pokemon_name_list,*_ = get_pokemon_info(info_all_pokemons) #*_ to ignore the other returned values
+    
     attacks_all_pokemons = get_session_for_attacks(session, first_pokemon_name_list)
     pokemon_moves = get_pokemon_moves(attacks_all_pokemons)
+    POKEMON_INFO["moves"] = POKEMON_MOVES.copy()
+
     sprites_all_pokemon = get_session_for_sprites(session,first_pokemon_name_list)
     url_sprites_pokemon = get_pokemon_sprites(sprites_all_pokemon)
-    download_sprite(session,url_sprites_pokemon)
+    sprite_name = download_sprite(session,url_sprites_pokemon)
+
+    print("\n" + "="*50)
+    print("POKEMON_INFO FINAL:")
+    print("="*50)
+    print(POKEMON_INFO)
+    print("\n" + "="*50)
 
 if __name__ == "__main__":
     main()
